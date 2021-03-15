@@ -4,7 +4,6 @@ class Shape {
     this.y = cell.centerY;
     this.w = cell.w * 0.4;
     this.updatePoints();
-    cell.addShape(this);
   }
 
   show() {

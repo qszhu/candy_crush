@@ -13,164 +13,187 @@ class Grid {
     this.reset();
   }
 
-  reset() {
-    this.grid = new Array(rows).fill().map(() => new Array(cols).fill());
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cell = new Cell(i, j, this.dim);
-        this.grid[i][j] = cell;
+  traverseBU(cb) {
+    for (let i = this.rows - 1; i >= 0; i--) {
+      for (let j = 0; j < this.cols; j++) {
+        if (cb(this.grid[i][j], i, j)) return;
       }
     }
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        if (i - 1 >= 0) cell.topCell = this.grid[i - 1][j];
-        if (i + 1 < rows) cell.bottomCell = this.grid[i + 1][j];
-        if (j - 1 >= 0) cell.leftCell = this.grid[i][j - 1];
-        if (j + 1 < cols) cell.rightCell = this.grid[i][j + 1];
+  }
+
+  reset() {
+    this.grid = new Array(this.rows)
+      .fill()
+      .map(() => new Array(this.cols).fill());
+
+    for (let i = 0; i < this.rows; i++) {
+      for (let j = 0; j < this.cols; j++) {
+        this.grid[i][j] = new Cell(i, j, this.dim);
       }
     }
 
+    this.traverseBU((cell, r, c) => {
+      if (r - 1 >= 0) cell.topCell = this.grid[r - 1][c];
+      if (r + 1 < this.rows) cell.bottomCell = this.grid[r + 1][c];
+      if (c - 1 >= 0) cell.leftCell = this.grid[r][c - 1];
+      if (c + 1 < this.cols) cell.rightCell = this.grid[r][c + 1];
+    });
+
     this.swaps = [];
     this.state = STATE_FALLING;
+  }
+
+  shapesFall() {
+    let res = false;
+    this.traverseBU((cell, i, j) => {
+      if (cell.isEmpty) return;
+
+      if (!cell.bottomCell || !cell.bottomCell.isEmpty) return;
+
+      const shape = cell.removeShape();
+      cell.bottomCell.addShape(shape);
+      res = true;
+    });
+    return res;
   }
 
   dropShape(col, shape) {
     const startCell = this.grid[0][col];
     if (!startCell.isEmpty) return;
 
-    shape.attachToCell(startCell);
+    startCell.addShape(shape);
   }
 
   dropShapes() {
-    for (let j = 0; j < cols; j++) {
+    for (let j = 0; j < this.cols; j++) {
       this.dropShape(j, randomShape());
     }
   }
 
-  shapesFall() {
-    let res = false;
-    for (let i = rows - 1; i >= 0; i--) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        if (cell.isEmpty) continue;
-        if (!cell.bottomCell || !cell.bottomCell.isEmpty) continue;
-        const shape = cell.removeShape();
-        shape.attachToCell(cell.bottomCell);
-        res = true;
+  isFull() {
+    let res = true;
+    this.traverseBU((cell) => {
+      if (cell.isEmpty) {
+        res = false;
+        return true;
       }
-    }
+    });
     return res;
   }
 
-  hasSameType(cell1, cell2) {
-    if (cell1.isEmpty || cell2.isEmpty) return false;
-    return cell1.shape.constructor.name === cell2.shape.constructor.name;
+  popShapes() {
+    this.traverseBU((cell) => {
+      cell.shouldPop = void 0;
+    });
+
+    this.traverseBU((cell) => {
+      this.markPop(cell);
+    });
+
+    this.traverseBU((cell) => {
+      if (cell.shouldPop) cell.removeShape();
+    });
   }
 
-  markPop(i, j) {
-    const cell = this.grid[i][j];
+  markPop(cell) {
     if (cell.shouldPop !== void 0) return;
 
     cell.shouldPop = false;
     if (cell.isEmpty) return;
 
+    this.markRowPop(cell);
+    this.markColPop(cell);
+  }
+
+  hasSameShape(cell1, cell2) {
+    if (cell1.isEmpty || cell2.isEmpty) return false;
+    return cell1.shape.constructor.name === cell2.shape.constructor.name;
+  }
+
+  markRowPop(cell) {
     let cnt = 1;
 
-    let left = j;
-    while (left - 1 >= 0 && this.hasSameType(cell, this.grid[i][left - 1])) {
+    let left = cell;
+    while (left.leftCell && this.hasSameShape(left.leftCell, cell)) {
       cnt++;
-      left--;
+      left = left.leftCell;
     }
 
-    let right = j;
-    while (
-      right + 1 < cols &&
-      this.hasSameType(cell, this.grid[i][right + 1])
-    ) {
+    let right = cell;
+    while (right.rightCell && this.hasSameShape(right.rightCell, cell)) {
       cnt++;
-      right++;
+      right = right.rightCell;
     }
 
     if (cnt >= 3) {
-      for (let c = left; c <= right; c++) {
-        this.grid[i][c].shouldPop = true;
-      }
-    }
-
-    cnt = 1;
-
-    let top = i;
-    while (top - 1 >= 0 && this.hasSameType(cell, this.grid[top - 1][j])) {
-      cnt++;
-      top--;
-    }
-
-    let bottom = i;
-    while (
-      bottom + 1 < rows &&
-      this.hasSameType(cell, this.grid[bottom + 1][j])
-    ) {
-      cnt++;
-      bottom++;
-    }
-
-    if (cnt >= 3) {
-      for (let r = top; r <= bottom; r++) {
-        this.grid[r][j].shouldPop = true;
+      for (let c = left; c !== right; c = c.rightCell) {
+        c.shouldPop = true;
       }
     }
   }
 
-  isFull() {
-    for (let i = rows - 1; i >= 0; i--) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        if (cell.isEmpty) return false;
-      }
-    }
-    return true;
-  }
+  markColPop(cell) {
+    let cnt = 1;
 
-  popShapes() {
-    for (let i = rows - 1; i >= 0; i--) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        cell.shouldPop = undefined;
-      }
+    let top = cell;
+    while (top.topCell && this.hasSameShape(top.topCell, cell)) {
+      cnt++;
+      top = top.topCell;
     }
-    for (let i = rows - 1; i >= 0; i--) {
-      for (let j = 0; j < cols; j++) {
-        this.markPop(i, j);
-      }
+
+    let bottom = cell;
+    while (bottom.bottomCell && this.hasSameShape(bottom.bottomCell, cell)) {
+      cnt++;
+      bottom = bottom.bottomCell;
     }
-    for (let i = rows - 1; i >= 0; i--) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        if (cell.shouldPop) cell.removeShape();
+
+    if (cnt >= 3) {
+      for (let c = top; c !== bottom; c = c.bottomCell) {
+        c.shouldPop = true;
       }
     }
   }
 
   findCell(x, y) {
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cell = this.grid[i][j];
-        if (cell.contains(x, y)) return cell;
+    let res;
+    this.traverseBU((cell) => {
+      if (cell.contains(x, y)) {
+        res = cell;
+        return true;
       }
+    });
+    return res;
+  }
+
+  pushSwap(cell) {
+    cell.selected = true;
+    this.swaps.push(cell);
+  }
+
+  popSwap() {
+    const cell = this.swaps.pop();
+    cell.selected = false;
+    return cell;
+  }
+
+  clearSwaps() {
+    while (this.swaps.length > 0) {
+      this.popSwap();
     }
   }
 
   swapStart(mouseX, mouseY) {
     if (this.state !== STATE_STABLE) return;
+
     const cell = this.findCell(mouseX, mouseY);
     if (!cell) return;
-    cell.highlight = true;
-    this.swaps = [cell];
+
+    this.clearSwaps();
+    this.pushSwap(cell);
     this.state = STATE_SWAPPING;
   }
 
-  isNeighborCell(cell1, cell2) {
+  isNeighbor(cell1, cell2) {
     return (
       cell1 === cell2.leftCell ||
       cell1 === cell2.rightCell ||
@@ -183,20 +206,20 @@ class Grid {
     if (this.state !== STATE_SWAPPING) return;
 
     const cell = this.findCell(mouseX, mouseY);
-    const cell0 = this.swaps[0];
-    if (!cell || cell === cell0) return;
-    if (!this.isNeighborCell(cell, cell0)) return;
+    if (!cell) return;
 
-    if (this.swaps.length === 2) {
-      this.swaps[1].highlight = false;
-      this.swaps.pop();
-    }
-    cell.highlight = true;
-    this.swaps.push(cell);
+    const cell0 = this.swaps[0];
+    if (cell === cell0) return;
+
+    if (!this.isNeighbor(cell, cell0)) return;
+
+    if (this.swaps.length === 2) this.popSwap();
+    this.pushSwap(cell);
   }
 
   swap() {
     if (this.state !== STATE_SWAPPING) return;
+
     if (this.swaps.length !== 2) {
       this.clearSwaps();
       this.state = STATE_STABLE;
@@ -204,24 +227,19 @@ class Grid {
     }
 
     const [cell1, cell2] = this.swaps;
-    cell1.highlight = false;
-    cell2.highlight = false;
+    cell1.selected = false;
+    cell2.selected = false;
     this.state = STATE_TRYING_SWAP;
   }
 
   doSwap() {
+    if (this.swaps.length !== 2) return;
+
     const [cell1, cell2] = this.swaps;
     const shape1 = cell1.removeShape();
     const shape2 = cell2.removeShape();
-    shape1.attachToCell(cell2);
-    shape2.attachToCell(cell1);
-  }
-
-  clearSwaps() {
-    while (this.swaps.length > 0) {
-      const cell = this.swaps.pop();
-      cell.highlight = false;
-    }
+    cell1.addShape(shape2);
+    cell2.addShape(shape1);
   }
 
   gameOver() {
@@ -244,24 +262,21 @@ class Grid {
       }
     } else if (this.state === STATE_TRYING_SWAP) {
       this.doSwap();
-      this.state = STATE_SWAPPED_POPING;
+      this.state = STATE_POPING;
     } else if (this.state === STATE_SWAPPED_POPING) {
       this.popShapes();
       if (this.isFull()) {
+        // nothing poped, reverting swaps
         this.doSwap();
         this.state = STATE_STABLE;
       } else {
-        this.state = STATE_POPING;
+        this.state = STATE_FALLING;
       }
       this.clearSwaps();
     }
   }
 
   show() {
-    for (let i = 0; i < this.rows; i++) {
-      for (let j = 0; j < this.cols; j++) {
-        this.grid[i][j].show();
-      }
-    }
+    this.traverseBU((cell) => cell.show());
   }
 }

@@ -8,7 +8,7 @@ class Cell {
     this.leftCell = null;
     this.rightCell = null;
     this.shape = null;
-    this.highlight = false;
+    this.selected = false;
   }
 
   contains(x, y) {
@@ -32,6 +32,7 @@ class Cell {
   addShape(shape) {
     if (!this.isEmpty) return;
     this.shape = shape;
+    shape.attachToCell(this);
   }
 
   removeShape() {
@@ -42,7 +43,7 @@ class Cell {
 
   show() {
     push();
-    if (this.highlight) {
+    if (this.selected) {
       stroke(255, 0, 255);
       strokeWeight(5);
     } else {
