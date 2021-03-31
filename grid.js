@@ -126,9 +126,11 @@ class Grid {
     }
 
     if (cnt >= 3) {
-      for (let c = left; c !== right; c = c.rightCell) {
+      let c
+      for (c = left; c !== right; c = c.rightCell) {
         c.shouldPop = true;
       }
+      c.shouldPop = true;
     }
   }
 
@@ -148,9 +150,11 @@ class Grid {
     }
 
     if (cnt >= 3) {
-      for (let c = top; c !== bottom; c = c.bottomCell) {
+      let c
+      for (c = top; c !== bottom; c = c.bottomCell) {
         c.shouldPop = true;
       }
+      c.shouldPop = true;
     }
   }
 
