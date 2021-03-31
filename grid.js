@@ -266,7 +266,7 @@ class Grid {
       }
     } else if (this.state === STATE_TRYING_SWAP) {
       this.doSwap();
-      this.state = STATE_POPING;
+      this.state = STATE_SWAPPED_POPING;
     } else if (this.state === STATE_SWAPPED_POPING) {
       this.popShapes();
       if (this.isFull()) {
